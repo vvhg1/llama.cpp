@@ -254,8 +254,17 @@ int main(int argc, char ** argv) {
     LOG("add_bos: %d\n", add_bos);
 
     std::vector<llama_token> embd_inp;
-
-    if (params.interactive_first || params.instruct || !params.prompt.empty() || session_tokens.empty()) {
+    if(params.infill) {
+        params.input_prefix = "def test():\n    print(\"hell";
+        params.input_suffix = " print(\"goodbye world\")\n    ";
+        std::vector<llama_token> inp_pfx = ::llama_tokenize(ctx, params.input_prefix, add_bos);
+        std::vector<llama_token> inp_sfx = ::llama_tokenize(ctx, params.input_suffix, add_bos);
+        inp_pfx.insert(inp_pfx.begin(), llama_token_prefix(ctx));
+        inp_sfx.insert(inp_sfx.begin(), llama_token_suffix(ctx));
+        inp_pfx.insert(inp_pfx.end(), inp_sfx.begin(), inp_sfx.end());
+        inp_pfx.push_back(llama_token_middle(ctx));
+        embd_inp = inp_pfx;
+    } else if (params.interactive_first || params.instruct || !params.prompt.empty() || session_tokens.empty()) {
         LOG("tokenize the prompt\n");
         embd_inp = ::llama_tokenize(ctx, params.prompt, add_bos);
     } else {

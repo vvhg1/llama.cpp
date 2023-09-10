@@ -1002,6 +1002,11 @@ struct llama_vocab {
     id special_pad_id = -1;
 
     id linefeed_id = 13;
+    // TODO: load these from the vocabulary.
+    id special_prefix_id = 32007;
+    id special_middle_id = 32009;
+    id special_suffix_id = 32008;
+    id special_eot_id = 32010;
 
     int find_bpe_rank(std::string token_left, std::string token_right) const {
         replace_all(token_left,  " ",  "\u0120");
@@ -6199,6 +6204,22 @@ llama_token llama_token_eos(const struct llama_context * ctx) {
 llama_token llama_token_nl(const struct llama_context * ctx) {
     return ctx->model.vocab.linefeed_id;
 }
+llama_token llama_token_prefix(const struct llama_context * ctx) {
+    return ctx->model.vocab.special_prefix_id;
+}
+
+llama_token llama_token_middle(const struct llama_context * ctx) {
+    return ctx->model.vocab.special_middle_id;
+}
+
+llama_token llama_token_suffix(const struct llama_context * ctx) {
+    return ctx->model.vocab.special_suffix_id;
+}
+
+llama_token llama_token_eot(const struct llama_context * ctx) {
+    return ctx->model.vocab.special_eot_id;
+}
+
 
 int llama_tokenize(
         struct llama_context * ctx,
@@ -6206,6 +6227,7 @@ int llama_tokenize(
                  llama_token * tokens,
                          int   n_max_tokens,
                         bool   add_bos) {
+                        printf("n_max_tokens in tokenize: %d\n", n_max_tokens); // std::cout << "n_max_tokens: " << n_max_tokens << std::endl;
     return llama_tokenize_with_model(&ctx->model, text, tokens, n_max_tokens, add_bos);
 }
 
