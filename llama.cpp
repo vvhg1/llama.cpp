@@ -6227,7 +6227,6 @@ int llama_tokenize(
                  llama_token * tokens,
                          int   n_max_tokens,
                         bool   add_bos) {
-                        printf("n_max_tokens in tokenize: %d\n", n_max_tokens); // std::cout << "n_max_tokens: " << n_max_tokens << std::endl;
     return llama_tokenize_with_model(&ctx->model, text, tokens, n_max_tokens, add_bos);
 }
 
