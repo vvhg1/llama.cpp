@@ -259,9 +259,9 @@ int main(int argc, char ** argv) {
         std::vector<llama_token> inp_sfx = ::llama_tokenize(ctx, params.input_suffix, add_bos);
         inp_pfx.insert(inp_pfx.begin(), llama_token_prefix(ctx));
         inp_sfx.insert(inp_sfx.begin(), llama_token_suffix(ctx));
-        inp_pfx.insert(inp_pfx.end(), inp_sfx.begin(), inp_sfx.end());
-        inp_pfx.push_back(llama_token_middle(ctx));
         embd_inp = inp_pfx;
+        embd_inp.insert(embd_inp.end(), inp_sfx.begin(), inp_sfx.end());
+        embd_inp.push_back(llama_token_middle(ctx));
     } else if (params.interactive_first || params.instruct || !params.prompt.empty() || session_tokens.empty()) {
         LOG("tokenize the prompt\n");
         embd_inp = ::llama_tokenize(ctx, params.prompt, add_bos);
@@ -743,7 +743,6 @@ int main(int argc, char ** argv) {
                 std::string buffer;
                 std::string line;
                 bool another_line=true;
-                //TODO it would maybe make sense to keep the old for regeneration if the user does not input anything
                 // set a new prefix via stdin
                 do {
                     another_line = console::readline(line, params.multiline_input);
@@ -771,9 +770,9 @@ int main(int argc, char ** argv) {
                 std::vector<llama_token> inp_sfx = ::llama_tokenize(ctx, params.input_suffix, add_bos);
                 inp_pfx.insert(inp_pfx.begin(), llama_token_prefix(ctx));
                 inp_sfx.insert(inp_sfx.begin(), llama_token_suffix(ctx));
-                inp_pfx.insert(inp_pfx.end(), inp_sfx.begin(), inp_sfx.end());
-                inp_pfx.push_back(llama_token_middle(ctx));
                 embd_inp = inp_pfx;
+                embd_inp.insert(embd_inp.end(), inp_sfx.begin(), inp_sfx.end());
+                embd_inp.push_back(llama_token_middle(ctx));
                 embd.clear();
                 embd_guidance.clear();
                 n_remain = params.n_predict;
