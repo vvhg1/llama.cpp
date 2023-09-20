@@ -29,17 +29,17 @@ Command line options:
 
 server is build alongside everything else from the root of the project
 
-- Using `make`:
+-   Using `make`:
 
-  ```bash
-  make
-  ```
+    ```bash
+    make
+    ```
 
-- Using `CMake`:
+-   Using `CMake`:
 
-  ```bash
-  cmake --build . --config Release
-  ```
+    ```bash
+    cmake --build . --config Release
+    ```
 
 ## Quick Start
 
@@ -56,6 +56,7 @@ To get started right away, run the following command, making sure to use the cor
 ```powershell
 server.exe -m models\7B\ggml-model.gguf -c 2048
 ```
+
 The above command will start a server that by default listens on `127.0.0.1:8080`.
 You can consume the endpoints with Postman or NodeJS with axios library. You can visit the web front end at the same url.
 
@@ -86,16 +87,16 @@ const prompt = `Building a website can be done in 10 simple steps:`;
 
 async function Test() {
     let response = await fetch("http://127.0.0.1:8080/completion", {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify({
             prompt,
             n_predict: 512,
-        })
-    })
-    console.log((await response.json()).content)
+        }),
+    });
+    console.log((await response.json()).content);
 }
 
-Test()
+Test();
 ```
 
 And run it:
@@ -108,7 +109,7 @@ node index.js
 
 -   **POST** `/completion`: Given a prompt, it returns the predicted completion.
 
-    *Options:*
+    _Options:_
 
     `temperature`: Adjust the randomness of the generated text (default: 0.8).
 
@@ -158,7 +159,7 @@ node index.js
 
 -   **POST** `/tokenize`: Tokenize a given text.
 
-    *Options:*
+    _Options:_
 
     `content`: Set the text to tokenize.
 
@@ -166,15 +167,25 @@ node index.js
 
 -   **POST** `/detokenize`: Convert tokens to text.
 
-    *Options:*
+    _Options:_
 
     `tokens`: Set the tokens to detokenize.
 
 -   **POST** `/embedding`: Generate embedding of a given text just as [the embedding example](../embedding) does.
 
-    *Options:*
+    _Options:_
 
     `content`: Set the text to process.
+
+    **POST** `/infill`: For code infilling. Takes a prefix and a suffix and returns the predicted completion as stream.
+
+    _Options:_
+
+    `input_prefix`: Set the prefix of the code to infill.
+
+    `input_suffix`: Set the suffix of the code to infill.
+
+    It also accepts all the options of `/completion` except `stream` and `prompt`.
 
 ## More examples
 
@@ -205,6 +216,7 @@ python api_like_OAI.py
 ```
 
 After running the API server, you can use it in Python by setting the API base URL.
+
 ```python
 openai.api_base = "http://<Your api-server IP>:port"
 ```
@@ -221,8 +233,8 @@ A simple example is below:
 
 ```html
 <html>
-  <body>
-    <pre>
+    <body>
+        <pre>
       <script type="module">
         import { llama } from '/completion.js'
 
@@ -237,6 +249,6 @@ You can use html formatting if needed.
         }
       </script>
     </pre>
-  </body>
+    </body>
 </html>
 ```
