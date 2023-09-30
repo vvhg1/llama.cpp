@@ -133,6 +133,13 @@ int main(int argc, char ** argv) {
 
         return 0;
     }
+    if (!params.prompt.empty()) {
+        printf("\n************\n");
+        printf("%s: please use the 'main' tool for normal prompts or supply '--in-prefix' and '--in-suffix' for infill mode.\n", __func__);
+        printf("************\n\n");
+
+        return 0;
+    }
 
     if (params.rope_freq_base != 10000.0) {
         LOG_TEE("%s: warning: changing RoPE frequency base to %g (default 10000.0)\n", __func__, params.rope_freq_base);
@@ -151,9 +158,6 @@ int main(int argc, char ** argv) {
     LOG_TEE("%s: seed  = %u\n", __func__, params.seed);
 
     std::mt19937 rng(params.seed);
-    if (params.random_prompt) {
-        params.prompt = gpt_random_prompt(rng);
-    }
 
     LOG("%s: llama backend init\n", __func__);
     llama_backend_init(params.numa);
@@ -249,16 +253,16 @@ int main(int argc, char ** argv) {
     LOG("add_bos: %d\n", add_bos);
 
     std::vector<llama_token> embd_inp;
-    if(params.infill) {//todo we always have infill, probably have to see if we are running on input first
-        std::vector<llama_token> inp_pfx = ::llama_tokenize(ctx, params.input_prefix, add_bos);
-        std::vector<llama_token> inp_sfx = ::llama_tokenize(ctx, params.input_suffix, add_bos);
-        inp_pfx.insert(inp_pfx.begin(), llama_token_prefix(ctx));
-        inp_sfx.insert(inp_sfx.begin(), llama_token_suffix(ctx));
-        embd_inp = inp_pfx;
-        embd_inp.insert(embd_inp.end(), inp_sfx.begin(), inp_sfx.end());
-        embd_inp.push_back(llama_token_middle(ctx));
-    }
-    LOG("prompt: \"%s\"\n", log_tostr(params.prompt));
+    std::vector<llama_token> inp_pfx = ::llama_tokenize(ctx, params.input_prefix, add_bos);
+    std::vector<llama_token> inp_sfx = ::llama_tokenize(ctx, params.input_suffix, add_bos);
+    inp_pfx.insert(inp_pfx.begin(), llama_token_prefix(ctx));
+    inp_sfx.insert(inp_sfx.begin(), llama_token_suffix(ctx));
+    embd_inp = inp_pfx;
+    embd_inp.insert(embd_inp.end(), inp_sfx.begin(), inp_sfx.end());
+    embd_inp.push_back(llama_token_middle(ctx));
+
+    LOG("prefix: \"%s\"\n", log_tostr(params.input_prefix));
+    LOG("suffix: \"%s\"\n", log_tostr(params.input_suffix));
     LOG("tokens: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, embd_inp));
 
     // Should not run without any tokens
@@ -455,7 +459,6 @@ int main(int argc, char ** argv) {
         is_interacting = params.interactive_first;
     }
 
-    bool is_antiprompt        = false;//todo not needed
     bool input_echo           = true;
     bool need_to_save_session = !path_session.empty() && n_matching_session_tokens < embd_inp.size();
 
@@ -480,7 +483,7 @@ int main(int argc, char ** argv) {
     std::vector<llama_token_data> candidates;
     candidates.reserve(n_vocab);
 
-    while ((n_remain != 0 && !is_antiprompt) || params.interactive) {
+    while (n_remain != 0 || params.interactive) {
         // predict
         if (!embd.empty()) {
             // Note: n_ctx - 4 here is to match the logic for commandLine prompt handling via
@@ -679,7 +682,7 @@ int main(int argc, char ** argv) {
         if ((int) embd_inp.size() <= n_consumed) {
 
             // deal with eot token in infill mode
-            if ((last_tokens.back() == llama_token_eot(ctx) || is_interacting) && params.infill && params.interactive){
+            if ((last_tokens.back() == llama_token_eot(ctx) || is_interacting) && params.interactive){
                 if(is_interacting && !params.interactive_first) {
                     // print an eot token
                     printf("%s", llama_token_to_piece(ctx, llama_token_eot(ctx)).c_str());
@@ -741,7 +744,7 @@ int main(int argc, char ** argv) {
                }
             }
 
-            if (n_past > 0 && is_interacting && !(params.infill && params.interactive)) {
+            if (n_past > 0 && is_interacting && !params.interactive) {
                 LOG("waiting for user input\n");
 
                 if (params.input_prefix_bos) {
@@ -828,7 +831,7 @@ int main(int argc, char ** argv) {
             is_interacting = true;
         }
     }
-    if (params.infill && !params.interactive && n_remain <= 0) {
+    if (!params.interactive && n_remain <= 0) {
         printf("%s", llama_token_to_piece(ctx, llama_token_eot(ctx)).c_str());
         fflush(stdout);
     }
