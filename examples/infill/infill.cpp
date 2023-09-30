@@ -388,9 +388,9 @@ int main(int argc, char ** argv) {
     std::fill(last_tokens.begin(), last_tokens.end(), 0);
     LOG_TEE("\n#####  Infill mode  #####\n\n");
     if (params.infill) {
-    printf("\n************\n");
-    printf("no need to specify '--infill', always running infill\n");
-    printf("************\n\n");
+        printf("\n************\n");
+        printf("no need to specify '--infill', always running infill\n");
+        printf("************\n\n");
     }
     if (params.interactive) {
         const char *control_message;
