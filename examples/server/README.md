@@ -7,7 +7,7 @@ Command line options:
 -   `--threads N`, `-t N`: Set the number of threads to use during generation.
 -   `-tb N, --threads-batch N`: Set the number of threads to use during batch and prompt processing. If not specified, the number of threads will be set to the number of threads used for generation.
 -   `-m FNAME`, `--model FNAME`: Specify the path to the LLaMA model file (e.g., `models/7B/ggml-model.gguf`).
--   `-m ALIAS`, `--alias ALIAS`: Set an alias for the model. The alias will be returned in API responses.
+-   `-a ALIAS`, `--alias ALIAS`: Set an alias for the model. The alias will be returned in API responses.
 -   `-c N`, `--ctx-size N`: Set the size of the prompt context. The default is 512, but LLaMA models were built with a context of 2048, which will provide better results for longer input/inference. The size may differ in other models, for example, baichuan models were build with a context of 4096.
 -   `-ngl N`, `--n-gpu-layers N`: When compiled with appropriate support (currently CLBlast or cuBLAS), this option allows offloading some layers to the GPU for computation. Generally results in increased performance.
 -   `-mg i, --main-gpu i`: When using multiple GPUs this option controls which GPU is used for small tensors for which the overhead of splitting the computation across all GPUs is not worthwhile. The GPU in question will use slightly more VRAM to store a scratch buffer for temporary results. By default GPU 0 is used. Requires cuBLAS.
@@ -24,6 +24,10 @@ Command line options:
 -   `--port`: Set the port to listen. Default: `8080`.
 -   `--path`: path from which to serve static files (default examples/server/public)
 -   `--embedding`: Enable embedding extraction, Default: disabled.
+-   `-np N`, `--parallel N`: Set the number of slots for process requests (default: 1)
+-   `-cb`, `--cont-batching`: enable continuous batching (a.k.a dynamic batching) (default: disabled)
+-   `-spf FNAME`, `--system-prompt-file FNAME` Set a file to load "a system prompt (initial prompt of all slots), this is useful for chat applications. [See more](#change-system-prompt-on-runtime)
+-   `--mmproj MMPROJ_FILE`: Path to a multimodal projector file for LLaVA.
 
 ## Build
 
@@ -118,6 +122,8 @@ node index.js
 
     `top_p`: Limit the next token selection to a subset of tokens with a cumulative probability above a threshold P (default: 0.95).
 
+    `min_p`: The minimum probability for a token to be considered, relative to the probability of the most likely token (default: 0.05).
+
     `n_predict`: Set the maximum number of tokens to predict when generating text. **Note:** May exceed the set limit slightly if the last token is a partial multibyte character. When 0, no tokens will be generated but the prompt is evaluated into the cache. (default: -1, -1 = infinity).
 
     `n_keep`: Specify the number of tokens from the prompt to retain when the context size is exceeded and tokens need to be discarded.
@@ -142,6 +148,8 @@ node index.js
 
     `frequency_penalty`: Repeat alpha frequency penalty (default: 0.0, 0.0 = disabled);
 
+    `penalty_prompt`: This will replace the `prompt` for the purpose of the penalty evaluation. Can be either `null`, a string or an array of numbers representing tokens (default: `null` = use the original `prompt`).
+
     `mirostat`: Enable Mirostat sampling, controlling perplexity during text generation (default: 0, 0 = disabled, 1 = Mirostat, 2 = Mirostat 2.0).
 
     `mirostat_tau`: Set the Mirostat target entropy, parameter tau (default: 5.0).
@@ -157,6 +165,8 @@ node index.js
     `logit_bias`: Modify the likelihood of a token appearing in the generated text completion. For example, use `"logit_bias": [[15043,1.0]]` to increase the likelihood of the token 'Hello', or `"logit_bias": [[15043,-1.0]]` to decrease its likelihood. Setting the value to false, `"logit_bias": [[15043,false]]` ensures that the token `Hello` is never produced (default: []).
 
     `n_probs`: If greater than 0, the response also contains the probabilities of top N tokens for each generated token (default: 0)
+
+    `image_data`: An array of objects to hold base64-encoded image `data` and its `id`s to be reference in `prompt`. You can determine the place of the image in the prompt as in the following: `USER:[img-12]Describe the image in detail.\nASSISTANT:` In this case, `[img-12]` will be replaced by the embeddings of the image id 12 in the following `image_data` array: `{..., "image_data": [{"data": "<BASE64_STRING>", "id": 12}]}`. Use `image_data` only with multimodal models, e.g., LLaVA.
 
     *Result JSON:*
 
@@ -188,6 +198,12 @@ node index.js
 
     `truncated`: Boolean indicating if the context size was exceeded during generation, i.e. the number of tokens provided in the prompt (`tokens_evaluated`) plus tokens generated (`tokens predicted`) exceeded the context size (`n_ctx`)
 
+    `slot_id`: Assign the completion task to an specific slot. If is -1 the task will be assigned to a Idle slot (default: -1)
+
+    `cache_prompt`: Save the prompt and generation for avoid reprocess entire prompt if a part of this isn't change (default: false)
+
+    `system_prompt`: Change the system prompt (initial prompt of all slots), this is useful for chat applications. [See more](#change-system-prompt-on-runtime)
+
 -   **POST** `/tokenize`: Tokenize a given text.
 
     *Options:*
@@ -208,7 +224,7 @@ node index.js
 
     `content`: Set the text to process.
 
-    **POST** `/infill`: For code infilling. Takes a prefix and a suffix and returns the predicted completion as stream.
+-   **POST** `/infill`: For code infilling. Takes a prefix and a suffix and returns the predicted completion as stream.
 
     *Options:*
 
@@ -218,7 +234,80 @@ node index.js
 
     It also accepts all the options of `/completion` except `stream` and `prompt`.
 
+-   **GET** `/props`: Return the required assistant name and anti-prompt to generate the prompt in case you have specified a system prompt for all slots.
+
+-   **POST** `/v1/chat/completions`: OpenAI-compatible Chat Completions API. Given a ChatML-formatted json description in `messages`, it returns the predicted completion. Both synchronous and streaming mode are supported, so scripted and interactive applications work fine. While no strong claims of compatibility with OpenAI API spec is being made, in our experience it suffices to support many apps. Only ChatML-tuned models, such as Dolphin, OpenOrca, OpenHermes, OpenChat-3.5, etc can be used with this endpoint. Compared to `api_like_OAI.py` this API implementation does not require a wrapper to be served.
+
+    *Options:*
+
+    See [OpenAI Chat Completions API documentation](https://platform.openai.com/docs/api-reference/chat). While some OpenAI-specific features such as function calling aren't supported, llama.cpp `/completion`-specific features such are `mirostat` are supported.
+
+    *Examples:*
+
+    You can use either Python `openai` library with appropriate checkpoints:
+
+    ```python
+    import openai
+
+    client = openai.OpenAI(
+        base_url="http://localhost:8080/v1", # "http://<Your api-server IP>:port"
+        api_key = "sk-no-key-required"
+    )
+
+    completion = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content": "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests."},
+        {"role": "user", "content": "Write a limerick about python exceptions"}
+    ]
+    )
+
+    print(completion.choices[0].message)
+    ```
+    ... or raw HTTP requests:
+
+    ```shell
+    curl http://localhost:8080/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer no-key" \
+    -d '{
+    "model": "gpt-3.5-turbo",
+    "messages": [
+    {
+        "role": "system",
+        "content": "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests."
+    },
+    {
+        "role": "user",
+        "content": "Write a limerick about python exceptions"
+    }
+    ]
+    }'
+    ```
+
 ## More examples
+
+### Change system prompt on runtime
+
+To use the server example to serve multiple chat-type clients while keeping the same system prompt, you can utilize the option `system_prompt` to achieve that. This only needs to be done once to establish it.
+
+`prompt`: Specify a context that you want all connecting clients to respect.
+
+`anti_prompt`: Specify the word you want to use to instruct the model to stop. This must be sent to each client through the `/props` endpoint.
+
+`assistant_name`: The bot's name is necessary for each customer to generate the prompt. This must be sent to each client through the `/props` endpoint.
+
+```json
+{
+    "system_prompt": {
+        "prompt": "Transcript of a never ending dialog, where the User interacts with an Assistant.\nThe Assistant is helpful, kind, honest, good at writing, and never fails to answer the User's requests immediately and with precision.\nUser: Recommend a nice restaurant in the area.\nAssistant: I recommend the restaurant \"The Golden Duck\". It is a 5 star restaurant with a great view of the city. The food is delicious and the service is excellent. The prices are reasonable and the portions are generous. The restaurant is located at 123 Main Street, New York, NY 10001. The phone number is (212) 555-1234. The hours are Monday through Friday from 11:00 am to 10:00 pm. The restaurant is closed on Saturdays and Sundays.\nUser: Who is Richard Feynman?\nAssistant: Richard Feynman was an American physicist who is best known for his work in quantum mechanics and particle physics. He was awarded the Nobel Prize in Physics in 1965 for his contributions to the development of quantum electrodynamics. He was a popular lecturer and author, and he wrote several books, including \"Surely You're Joking, Mr. Feynman!\" and \"What Do You Care What Other People Think?\".\nUser:",
+        "anti_prompt": "User:",
+        "assistant_name": "Assistant:"
+    }
+}
+```
+
+**NOTE**: You can do this automatically when starting the server by simply creating a .json file with these options and using the CLI option `-spf FNAME` or `--system-prompt-file FNAME`.
 
 ### Interactive mode
 
