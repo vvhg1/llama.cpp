@@ -1,6 +1,5 @@
 import Foundation
-
-// import llama
+import llama
 
 enum LlamaError: Error {
     case couldNotInitializeContext
@@ -52,7 +51,7 @@ actor LlamaContext {
     }
 
     static func create_context(path: String) throws -> LlamaContext {
-        llama_backend_init(false)
+        llama_backend_init()
         var model_params = llama_model_default_params()
 
 #if targetEnvironment(simulator)
@@ -159,7 +158,7 @@ actor LlamaContext {
             new_token_id = llama_sample_token_greedy(context, &candidates_p)
         }
 
-        if new_token_id == llama_token_eos(context) || n_cur == n_len {
+        if new_token_id == llama_token_eos(model) || n_cur == n_len {
             print("\n")
             let new_token_str = String(cString: temporary_invalid_cchars + [0])
             temporary_invalid_cchars.removeAll()
