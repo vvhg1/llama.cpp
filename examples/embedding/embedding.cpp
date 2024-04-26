@@ -62,7 +62,7 @@ int main(int argc, char ** argv) {
 
     params.embedding = true;
 
-    print_build_info();
+    // print_build_info();
 
     if (params.seed == LLAMA_DEFAULT_SEED) {
         params.seed = time(NULL);
@@ -103,6 +103,7 @@ int main(int argc, char ** argv) {
     }
 
     // split the prompt into lines
+    // TODO: we don't want to do that but instead supply a list of prompts and return a list of embeddings
     std::vector<std::string> prompts = split_lines(params.prompt);
 
     // max batch size
@@ -168,7 +169,7 @@ int main(int argc, char ** argv) {
     batch_decode(ctx, batch, out, s, n_embd);
 
     // print first 3 embeddings
-    for (int j = 0; j < std::min(3, n_prompts); j++) {
+    for (int j = 0; j < n_prompts; j++) {
         fprintf(stderr, "embedding %d: ", j);
         for (int i = 0; i < n_embd; i++) {
             fprintf(stderr, "%f ", emb[j * n_embd + i]);
