@@ -61,6 +61,8 @@ int main(int argc, char ** argv) {
     }
 
     params.embedding = true;
+    // For non-causal models, batch size must be equal to ubatch size
+    params.n_ubatch = params.n_batch;
 
     // print_build_info();
 
@@ -108,16 +110,25 @@ int main(int argc, char ** argv) {
 
     // max batch size
     const uint64_t n_batch = params.n_batch;
-    GGML_ASSERT(params.n_batch == params.n_ctx);
+    GGML_ASSERT(params.n_batch >= params.n_ctx);
 
     // tokenize the prompts and trim
     std::vector<std::vector<int32_t>> inputs;
     for (const auto & prompt : prompts) {
-        auto inp = ::llama_tokenize(ctx, prompt, true);
+        auto inp = ::llama_tokenize(ctx, prompt, true, false);
         if (inp.size() > n_batch) {
-            inp.resize(n_batch);
+            fprintf(stderr, "%s: error: number of tokens in input line (%lld) exceeds batch size (%lld), increase batch size and re-run\n",
+                    __func__, (long long int) inp.size(), (long long int) n_batch);
+            return 1;
         }
         inputs.push_back(inp);
+    }
+
+    // add SEP if not present
+    for (auto & inp : inputs) {
+        if (inp.empty() || inp.back() != llama_token_sep(model)) {
+            inp.push_back(llama_token_sep(model));
+        }
     }
 
     // tokenization stats
@@ -168,15 +179,14 @@ int main(int argc, char ** argv) {
     float * out = emb + p * n_embd;
     batch_decode(ctx, batch, out, s, n_embd);
 
-    // print first 3 embeddings
+    // print the full embedding
+    // fprintf(stdout, "\n");
     for (int j = 0; j < n_prompts; j++) {
         fprintf(stderr, "embedding %d: ", j);
         for (int i = 0; i < n_embd; i++) {
             fprintf(stderr, "%f ", emb[j * n_embd + i]);
         }
-        fprintf(stderr, "\n\n");
     }
-    fprintf(stderr, "\n");
 
     // clean up
     llama_print_timings(ctx);
