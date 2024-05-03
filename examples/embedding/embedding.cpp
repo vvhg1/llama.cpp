@@ -2,6 +2,7 @@
 #include "llama.h"
 
 #include <ctime>
+#include <fstream>
 
 #if defined(_MSC_VER)
 #pragma warning(disable: 4244 4267) // possible loss of data
@@ -179,14 +180,15 @@ int main(int argc, char ** argv) {
     float * out = emb + p * n_embd;
     batch_decode(ctx, batch, out, s, n_embd);
 
-    // print the full embedding
-    // fprintf(stdout, "\n");
-    for (int j = 0; j < n_prompts; j++) {
-        fprintf(stderr, "embedding %d: ", j);
-        for (int i = 0; i < n_embd; i++) {
-            fprintf(stderr, "%f ", emb[j * n_embd + i]);
-        }
+    // write embeddings to binary file
+    std::string emb_file = params.prompt_file + ".emb";
+    std::ofstream emb_out(emb_file, std::ios::binary);
+    if (!emb_out) {
+        fprintf(stderr, "Error opening emb file for write: %s\n", emb_file.c_str());
+        return 1;
     }
+    emb_out.write(reinterpret_cast<const char *>(emb), n_prompts * n_embd * sizeof(float));
+    emb_out.close();
 
     // clean up
     llama_print_timings(ctx);
