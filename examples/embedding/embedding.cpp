@@ -125,10 +125,10 @@ int main(int argc, char ** argv) {
         inputs.push_back(inp);
     }
 
-    // add SEP if not present
+    // add eos if not present
     for (auto & inp : inputs) {
-        if (inp.empty() || inp.back() != llama_token_sep(model)) {
-            inp.push_back(llama_token_sep(model));
+        if (inp.empty() || inp.back() != llama_token_eos(model)) {
+            inp.push_back(llama_token_eos(model));
         }
     }
 

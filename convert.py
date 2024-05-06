@@ -33,7 +33,7 @@ if 'NO_LOCAL_GGUF' not in os.environ:
 import gguf
 
 if TYPE_CHECKING:
-    from typing_extensions import Self, TypeAlias
+    from typing import TypeAlias
 
 if hasattr(faulthandler, 'register') and hasattr(signal, 'SIGUSR1'):
     faulthandler.register(signal.SIGUSR1)
@@ -517,7 +517,7 @@ class LlamaHfVocab(Vocab):
     tokenizer_model = "llama"
     name = "hfft"
 
-    def __init__(self, base_path: Path):
+    def __init__(self, base_path: Path, ignore_nonllama: bool = False):
         fname_tokenizer = base_path / FAST_TOKENIZER_FILE
         # if this fails, FileNotFoundError propagates to caller
         with open(fname_tokenizer, encoding='utf-8') as f:
@@ -525,14 +525,9 @@ class LlamaHfVocab(Vocab):
 
         # pre-check so we know if we need transformers
         tokenizer_model: dict[str, Any] = tokenizer_json['model']
-        is_llama3 = (
-            tokenizer_model['type'] == 'BPE' and tokenizer_model.get('ignore_merges', False)
-            and not tokenizer_model.get('byte_fallback', True)
-        )
-        if is_llama3:
-            raise TypeError('Llama 3 must be converted with BpeVocab')
-
-        if not is_llama3 and (
+        if ignore_nonllama:
+            pass  # workaround incorrect use of this class for WordPiece
+        elif (
             tokenizer_model['type'] != 'BPE' or not tokenizer_model.get('byte_fallback', False)
             or tokenizer_json['decoder']['type'] != 'Sequence'
         ):
@@ -652,17 +647,16 @@ def permute(weights: NDArray, n_head: int, n_head_kv: int) -> NDArray:
 
 
 class Tensor(ABC):
-    ndarray: NDArray
     data_type: DataType
 
     @abstractmethod
-    def astype(self, data_type: DataType) -> Self: ...
+    def astype(self, data_type: DataType) -> Tensor: ...
     @abstractmethod
-    def permute(self, n_head: int, n_head_kv: int) -> Self: ...
+    def permute(self, n_head: int, n_head_kv: int) -> Tensor: ...
     @abstractmethod
-    def permute_part(self, n_part: int, n_head: int, n_head_kv: int) -> Self: ...
+    def permute_part(self, n_part: int, n_head: int, n_head_kv: int) -> UnquantizedTensor: ...
     @abstractmethod
-    def part(self, n_part: int) -> Self: ...
+    def part(self, n_part: int) -> UnquantizedTensor: ...
     @abstractmethod
     def to_ggml(self) -> GGMLCompatibleTensor: ...
 
@@ -679,13 +673,13 @@ class UnquantizedTensor(Tensor):
         self.ndarray = ndarray
         self.data_type = NUMPY_TYPE_TO_DATA_TYPE[ndarray.dtype]
 
-    def astype(self, data_type: DataType) -> UnquantizedTensor:
+    def astype(self, data_type: DataType) -> Tensor:
         dtype = data_type.dtype
         if self.data_type == DT_BF16:
             self.ndarray = bf16_to_fp32(self.ndarray)
         return UnquantizedTensor(self.ndarray.astype(dtype))
 
-    def to_ggml(self) -> Self:
+    def to_ggml(self) -> UnquantizedTensor:
         return self
 
     def permute_part(self, n_part: int, n_head: int, n_head_kv: int) -> UnquantizedTensor:
