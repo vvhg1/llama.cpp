@@ -15,6 +15,7 @@ int main(int argc, char ** argv){
     gpt_params params;
 
     if (!gpt_params_parse(argc, argv, params)) {
+        gpt_params_print_usage(argc, argv, params);
         return 1;
     }
 
@@ -124,7 +125,7 @@ int main(int argc, char ** argv){
         // debug
         if (dump_kv_cache) {
             llama_kv_cache_view_update(ctx, &kvc_view);
-            dump_kv_cache_view_seqs(kvc_view, 40);
+            llama_kv_cache_dump_view_seqs(kvc_view, 40);
         }
 
         // print current draft sequence
