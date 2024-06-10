@@ -356,8 +356,7 @@ int main(int raw_argc, char ** raw_argv) {
     const bool add_bos = model_wants_add_bos && !no_bos;
 
     std::vector<llama_token> tokens;
-
-    tokens = ::llama_tokenize(model, prompt, true, true);
+    tokens = ::llama_tokenize(model, prompt, add_bos, true);
 
     if (printing_ids) {
         printf("[");

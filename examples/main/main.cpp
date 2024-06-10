@@ -251,9 +251,6 @@ int main(int argc, char ** argv) {
 
     if (params.interactive_first || !params.prompt.empty() || session_tokens.empty()) {
         LOG("tokenize the prompt\n");
-        if (params.chatml) {
-            params.prompt = "<|im_start|>system\n" + params.prompt + "<|im_end|>";
-        }
         embd_inp = ::llama_tokenize(ctx, params.prompt, true, true);
     } else {
         LOG("use session tokens\n");
@@ -337,22 +334,7 @@ int main(int argc, char ** argv) {
         params.n_keep += add_bos; // always keep the BOS token
     }
 
-    // prefix & suffix for instruct mode
-    const auto inp_pfx = ::llama_tokenize(ctx, "\n\n### Instruction:\n\n", true,  true);
-    const auto inp_sfx = ::llama_tokenize(ctx, "\n\n### Response:\n\n",    false, true);
-
-    LOG("inp_pfx: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, inp_pfx).c_str());
-    LOG("inp_sfx: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, inp_sfx).c_str());
-
-    // chatml prefix & suffix
-    const auto cml_pfx = ::llama_tokenize(ctx, "\n<|im_start|>user\n", true, true);
-    const auto cml_sfx = ::llama_tokenize(ctx, "<|im_end|>\n<|im_start|>assistant\n", false, true);
-
-    LOG("cml_pfx: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, cml_pfx).c_str());
-    LOG("cml_sfx: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, cml_sfx).c_str());
-
-    // in instruct mode, we inject a prefix and a suffix to each input by the user
-    if (params.instruct) {
+    if (params.conversation) {
         params.interactive_first = true;
     }
 
