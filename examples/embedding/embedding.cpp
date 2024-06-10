@@ -12,7 +12,17 @@ static std::vector<std::string> split_lines(const std::string & s) {
     std::string line;
     std::vector<std::string> lines;
     std::stringstream ss(s);
+    std::string original = "\\n";
+    std::string replacement = "\n";
     while (std::getline(ss, line)) {
+        // we need to unescape double escaped newlines
+        size_t start_pos = 0;
+        while((start_pos = line.find(original, start_pos)) != std::string::npos) {
+            std::string new_prompt =
+
+            line.replace(start_pos, original.length(), replacement);
+            start_pos += replacement.length();
+        }
         lines.push_back(line);
     }
     return lines;
