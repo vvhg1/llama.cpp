@@ -355,10 +355,9 @@ int main(int raw_argc, char ** raw_argv) {
     const bool model_wants_add_bos = llama_should_add_bos_token(model);
     const bool add_bos = model_wants_add_bos && !no_bos;
 
-    const bool add_bos = llama_should_add_bos_token(model);
-
     std::vector<llama_token> tokens;
-    tokens = ::llama_tokenize(model, prompt, add_bos, true);
+
+    tokens = ::llama_tokenize(model, prompt, true, true);
 
     if (printing_ids) {
         printf("[");

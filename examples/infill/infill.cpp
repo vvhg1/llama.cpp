@@ -201,6 +201,7 @@ int main(int argc, char ** argv) {
         LOG_TEE("%s\n", gpt_params_get_system_info(params).c_str());
     }
     const bool add_bos = llama_should_add_bos_token(model);
+    GGML_ASSERT(llama_add_eos_token(model) != 1);
     LOG("add_bos: %d\n", add_bos);
 
     bool suff_rm_leading_spc = params.escape;
@@ -232,6 +233,25 @@ int main(int argc, char ** argv) {
     if (embd_inp.empty()) {
         embd_inp.push_back(llama_token_bos(model));
         LOG("embd_inp was considered empty and bos was added: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, embd_inp).c_str());
+    }
+
+    // Tokenize negative prompt
+    std::vector<llama_token> guidance_inp;
+    int guidance_offset = 0;
+    int original_prompt_len = 0;
+    if (ctx_guidance) {
+        LOG("cfg_negative_prompt: \"%s\"\n", log_tostr(sparams.cfg_negative_prompt));
+
+        guidance_inp = ::llama_tokenize(ctx_guidance, sparams.cfg_negative_prompt, true);
+        LOG("guidance_inp tokenized: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx_guidance, guidance_inp).c_str());
+
+        std::vector<llama_token> original_inp = ::llama_tokenize(ctx, params.prompt, true);
+        LOG("original_inp tokenized: %s\n", LOG_TOKENS_TOSTR_PRETTY(ctx, original_inp).c_str());
+
+        original_prompt_len = original_inp.size();
+        guidance_offset = (int)guidance_inp.size() - original_prompt_len;
+        LOG("original_prompt_len: %s", log_tostr(original_prompt_len));
+        LOG("guidance_offset:     %s", log_tostr(guidance_offset));
     }
 
     if ((int) embd_inp.size() > n_ctx - 4) {
