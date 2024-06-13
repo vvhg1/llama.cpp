@@ -4583,8 +4583,6 @@ static void llm_load_vocab(
             vocab.special_unk_id  = 100;
             vocab.special_sep_id  = 102;
             vocab.special_pad_id  = 0;
-            vocab.special_cls_id  = 101;
-            vocab.special_mask_id = 103;
             vocab.add_space_prefix = false;
         } else if (tokenizer_model == "gpt2") {
             vocab.type = LLAMA_VOCAB_TYPE_BPE;
