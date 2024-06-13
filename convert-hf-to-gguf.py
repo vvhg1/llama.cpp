@@ -375,8 +375,8 @@ class Model:
         toktypes: list[int] = []
 
         from transformers import AutoTokenizer
-        tokenizer = AutoTokenizer.from_pretrained(self.dir_model)
-        vocab_size = self.hparams.get("vocab_size", len(tokenizer.vocab))
+        tokenizer = AutoTokenizer.from_pretrained(dir_model)
+        vocab_size = hparams.get("vocab_size", len(tokenizer.vocab))
         assert max(tokenizer.vocab.values()) < vocab_size
 
         tokpre = self.get_vocab_base_pre(tokenizer)
@@ -509,7 +509,7 @@ class Model:
         self.gguf_writer.add_token_list(tokens)
         self.gguf_writer.add_token_types(toktypes)
 
-        special_vocab = gguf.SpecialVocab(self.dir_model, load_merges=True)
+        special_vocab = gguf.SpecialVocab(dir_model, load_merges=True)
         special_vocab.add_to_gguf(self.gguf_writer)
 
     def _set_vocab_qwen(self):
@@ -2163,26 +2163,35 @@ class BertModel(Model):
             self.gguf_writer.add_pooling_type(pooling_type)
 
     def set_vocab(self):
-        tokens, toktypes, tokpre = self.get_vocab_base()
-        self.vocab_size = len(tokens)
+        # use huggingface vocab to get all tokens
+        vocab = LlamaHfVocab(self.dir_model, ignore_nonllama=True)
+        tokens, scores, toktypes = zip(*vocab.all_tokens())
+        assert len(tokens) == vocab.vocab_size
+        self.vocab_size = vocab.vocab_size
 
         # we need this to validate the size of the token_type embeddings
         # though currently we are passing all zeros to the token_type embeddings
-        self.gguf_writer.add_token_type_count(2)  # "Sequence A" or "Sequence B"
+        n_token_types = len(set(toktypes))
+        self.gguf_writer.add_token_type_count(n_token_types)
 
         # convert to phantom space vocab
-        def phantom(tok):
-            if tok.startswith("[") and tok.endswith("]"):
+        def phantom(tok, typ):
+            if tok.startswith(b"[") and tok.endswith(b"]"):
                 return tok
-            if tok.startswith("##"):
+            if tok.startswith(b"##"):
                 return tok[2:]
-            return "\u2581" + tok
-        tokens = list(map(phantom, tokens))
+            return b"\xe2\x96\x81" + tok
+        tokens = tuple(phantom(t, y) for t, y in zip(tokens, toktypes))
+
+        # set up bos and eos tokens (cls and sep)
+        self.gguf_writer.add_bos_token_id(vocab.tokenizer.cls_token_id)
+        self.gguf_writer.add_eos_token_id(vocab.tokenizer.sep_token_id)
 
         # add vocab to gguf
         self.gguf_writer.add_tokenizer_model("bert")
         self.gguf_writer.add_tokenizer_pre(tokpre)
         self.gguf_writer.add_token_list(tokens)
+        self.gguf_writer.add_token_scores(scores)
         self.gguf_writer.add_token_types(toktypes)
 
         # handle special tokens
@@ -2227,6 +2236,16 @@ class NomicBertModel(BertModel):
     def set_gguf_parameters(self):
         super().set_gguf_parameters()
         self.gguf_writer.add_rope_freq_base(self.hparams["rotary_emb_base"])
+
+    def get_tensors(self):
+        assert self.vocab_size is not None
+        for name, data in super().get_tensors():
+            # Nomic Embed's token embeddings tensor is padded, but llama.cpp wants tensor sizes to match exactly.
+            if name == 'embeddings.word_embeddings.weight' and data.shape[1] != self.vocab_size:
+                rounded_vocab_size = (self.vocab_size + 63) // 64 * 64
+                assert data.shape == (rounded_vocab_size, self.hparams["n_embd"])
+                data = data[:self.vocab_size, :]
+            yield name, data
 
 
 @Model.register("GemmaForCausalLM")

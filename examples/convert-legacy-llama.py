@@ -36,7 +36,7 @@ import gguf
 from gguf import BaseVocab, Vocab, NoVocab, BpeVocab, SentencePieceVocab, LlamaHfVocab
 
 if TYPE_CHECKING:
-    from typing_extensions import Self, TypeAlias
+    from typing import TypeAlias
 
 logger = logging.getLogger("convert")
 
@@ -397,17 +397,16 @@ def permute(weights: NDArray, n_head: int, n_head_kv: int) -> NDArray:
 
 
 class Tensor(ABC):
-    ndarray: NDArray
     data_type: DataType
 
     @abstractmethod
-    def astype(self, data_type: DataType) -> Self: ...
+    def astype(self, data_type: DataType) -> Tensor: ...
     @abstractmethod
-    def permute(self, n_head: int, n_head_kv: int) -> Self: ...
+    def permute(self, n_head: int, n_head_kv: int) -> Tensor: ...
     @abstractmethod
-    def permute_part(self, n_part: int, n_head: int, n_head_kv: int) -> Self: ...
+    def permute_part(self, n_part: int, n_head: int, n_head_kv: int) -> UnquantizedTensor: ...
     @abstractmethod
-    def part(self, n_part: int) -> Self: ...
+    def part(self, n_part: int) -> UnquantizedTensor: ...
     @abstractmethod
     def to_ggml(self) -> GGMLCompatibleTensor: ...
 
@@ -424,13 +423,13 @@ class UnquantizedTensor(Tensor):
         self.ndarray = ndarray
         self.data_type = NUMPY_TYPE_TO_DATA_TYPE[ndarray.dtype]
 
-    def astype(self, data_type: DataType) -> UnquantizedTensor:
+    def astype(self, data_type: DataType) -> Tensor:
         dtype = data_type.dtype
         if self.data_type == DT_BF16:
             self.ndarray = bf16_to_fp32(self.ndarray)
         return UnquantizedTensor(self.ndarray.astype(dtype))
 
-    def to_ggml(self) -> Self:
+    def to_ggml(self) -> UnquantizedTensor:
         return self
 
     def permute_part(self, n_part: int, n_head: int, n_head_kv: int) -> UnquantizedTensor:

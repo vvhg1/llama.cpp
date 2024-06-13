@@ -201,7 +201,6 @@ int main(int argc, char ** argv) {
         LOG_TEE("%s\n", gpt_params_get_system_info(params).c_str());
     }
     const bool add_bos = llama_should_add_bos_token(model);
-    GGML_ASSERT(llama_add_eos_token(model) != 1);
     LOG("add_bos: %d\n", add_bos);
 
     bool suff_rm_leading_spc = params.escape;
