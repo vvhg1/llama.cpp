@@ -88,7 +88,7 @@ int main(int argc, char ** argv) {
     // For non-causal models, batch size must be equal to ubatch size
     params.n_ubatch = params.n_batch;
 
-    print_build_info();
+    // print_build_info();
 
     if (params.seed == LLAMA_DEFAULT_SEED) {
         params.seed = time(NULL);
@@ -135,6 +135,7 @@ int main(int argc, char ** argv) {
     // split the prompt into lines
     std::vector<std::string> prompts = split_lines(params.prompt, params.embd_sep);
 
+    fprintf(stdout, "count of prompts: %d\n", prompts.size());
     // max batch size
     const uint64_t n_batch = params.n_batch;
     GGML_ASSERT(params.n_batch >= params.n_ctx);
@@ -275,7 +276,7 @@ int main(int argc, char ** argv) {
         }
     }
 
-    if (params.embd_out == "json" || params.embd_out == "json+" || params.embd_out == "array") {
+    if (params.embd_out == "json" || params.embd_out == "json+" || params.embd_out == "array" || params.embd_out == "binary") {
         const bool notArray = params.embd_out != "array";
 
         fprintf(stdout, notArray ? "{\n  \"object\": \"list\",\n  \"data\": [\n" : "[");
@@ -309,6 +310,16 @@ int main(int argc, char ** argv) {
             }
             fprintf(stdout, "\n  ]");
         }
+        else if (params.embd_out == "binary") {
+            fprintf(stdout, "we are writing embeddings to %s\n", params.prompt_file.c_str());
+            // write embeddings to binary file
+            std::string emb_file = params.prompt_file + ".emb";
+            std::ofstream emb_out(emb_file, std::ios::binary);
+            if (!emb_out) {
+                fprintf(stderr, "Error opening emb file for write: %s\n", emb_file.c_str());
+                return 1;
+            }
+            emb_out.write(reinterpret_cast<const char *>(emb), n_prompts * n_embd * sizeof(float));
 
         if (notArray) fprintf(stdout, "\n}\n");
     }
