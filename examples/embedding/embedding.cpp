@@ -14,6 +14,7 @@ static std::vector<std::string> split_lines(const std::string & s, const std::st
     size_t end = s.find(separator);
 
     while (end != std::string::npos) {
+        fprintf(stdout, "%s\n\n", s.substr(start, end - start).c_str());
         lines.push_back(s.substr(start, end - start));
         start = end + separator.length();
         end = s.find(separator, start);
@@ -324,6 +325,7 @@ int main(int argc, char ** argv) {
             }
             fprintf(stdout, "\n  ]");
         }
+
 
         if (notArray) fprintf(stdout, "\n}\n");
     }
