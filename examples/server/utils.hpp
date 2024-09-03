@@ -3,6 +3,14 @@
 #include "llama.h"
 #include "common.h"
 
+#ifndef NDEBUG
+// crash the server in debug mode, otherwise send an http 500 error
+#define CPPHTTPLIB_NO_EXCEPTIONS 1
+#endif
+// increase max payload length to allow use of larger context size
+#define CPPHTTPLIB_FORM_URL_ENCODED_PAYLOAD_MAX_LENGTH 1048576
+#include "httplib.h"
+
 // Change JSON_ASSERT from assert() to GGML_ASSERT:
 #define JSON_ASSERT GGML_ASSERT
 #include "json.hpp"
@@ -279,6 +287,18 @@ static size_t find_partial_stop_string(const std::string &stop, const std::strin
     return std::string::npos;
 }
 
+static bool json_is_array_of_numbers(json data) {
+    if (data.is_array()) {
+        for (const auto & e : data) {
+            if (!e.is_number()) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
 // TODO: reuse llama_detokenize
 template <class Iter>
 static std::string tokens_to_str(llama_context * ctx, Iter begin, Iter end) {
@@ -343,6 +363,19 @@ static json probs_vector_to_json(const llama_context * ctx, const std::vector<co
     return out;
 }
 
+static bool server_sent_event(httplib::DataSink & sink, const char * event, json & data) {
+    const std::string str =
+        std::string(event) + ": " +
+        data.dump(-1, ' ', false, json::error_handler_t::replace) +
+        "\n\n";
+
+    LOG_VERBOSE("data stream", {
+        { "to_send", str }
+    });
+
+    return sink.write(str.c_str(), str.size());
+}
+
 //
 // OAI utils
 //
@@ -354,24 +387,6 @@ static json oaicompat_completion_params_parse(
     json llama_params;
 
     llama_params["__oaicompat"] = true;
-
-    // Map OpenAI parameters to llama.cpp parameters
-    //
-    // For parameters that are defined by the OpenAI documentation (e.g.
-    // temperature), we explicitly specify OpenAI's intended default; we
-    // need to do that because sometimes OpenAI disagrees with llama.cpp
-    //
-    // https://platform.openai.com/docs/api-reference/chat/create
-    llama_sampling_params default_sparams;
-    llama_params["model"]             = json_value(body,   "model",             std::string("unknown"));
-    llama_params["frequency_penalty"] = json_value(body,   "frequency_penalty", 0.0);
-    llama_params["logit_bias"]        = json_value(body,   "logit_bias",        json::object());
-    llama_params["n_predict"]         = json_value(body,   "max_tokens",        -1);
-    llama_params["presence_penalty"]  = json_value(body,   "presence_penalty",  0.0);
-    llama_params["seed"]              = json_value(body,   "seed",              LLAMA_DEFAULT_SEED);
-    llama_params["stream"]            = json_value(body,   "stream",            false);
-    llama_params["temperature"]       = json_value(body,   "temperature",       1.0);
-    llama_params["top_p"]             = json_value(body,   "top_p",             1.0);
 
     // Apply chat template to the list of messages
     llama_params["prompt"] = format_chat(model, chat_template, body.at("messages"));
