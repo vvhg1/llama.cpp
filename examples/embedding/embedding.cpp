@@ -2,6 +2,7 @@
 #include "llama.h"
 
 #include <ctime>
+#include <fstream>
 
 #if defined(_MSC_VER)
 #pragma warning(disable: 4244 4267) // possible loss of data
@@ -277,6 +278,19 @@ int main(int argc, char ** argv) {
     }
 
     if (params.embd_out == "json" || params.embd_out == "json+" || params.embd_out == "array" || params.embd_out == "binary") {
+        if (params.embd_out == "binary") {
+            fprintf(stdout, "we are writing embeddings to %s\n", params.prompt_file.c_str());
+            // write embeddings to binary file
+            std::string emb_file = params.prompt_file + ".emb";
+            std::ofstream emb_out(emb_file, std::ios::binary);
+            if (!emb_out) {
+                fprintf(stderr, "Error opening emb file for write: %s\n", emb_file.c_str());
+                return 1;
+            }
+            emb_out.write(reinterpret_cast<const char *>(emb), n_prompts * n_embd * sizeof(float));
+            emb_out.close();
+            return 0;
+        }
         const bool notArray = params.embd_out != "array";
 
         fprintf(stdout, notArray ? "{\n  \"object\": \"list\",\n  \"data\": [\n" : "[");
@@ -310,16 +324,6 @@ int main(int argc, char ** argv) {
             }
             fprintf(stdout, "\n  ]");
         }
-        else if (params.embd_out == "binary") {
-            fprintf(stdout, "we are writing embeddings to %s\n", params.prompt_file.c_str());
-            // write embeddings to binary file
-            std::string emb_file = params.prompt_file + ".emb";
-            std::ofstream emb_out(emb_file, std::ios::binary);
-            if (!emb_out) {
-                fprintf(stderr, "Error opening emb file for write: %s\n", emb_file.c_str());
-                return 1;
-            }
-            emb_out.write(reinterpret_cast<const char *>(emb), n_prompts * n_embd * sizeof(float));
 
         if (notArray) fprintf(stdout, "\n}\n");
     }
